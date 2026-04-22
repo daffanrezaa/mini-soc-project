@@ -1,0 +1,20 @@
+{
+  "timestamp": "2025-01-15T10:23:45.123+0000",
+  "rule": {
+    "level": 10,
+    "description": "Nmap: port scan detected",
+    "id": "100001",
+    "groups": ["recon", "nmap"]
+  },
+  "agent": {
+    "id": "001",
+    "name": "windows-target",
+    "ip": "192.168.56.20"
+  },
+  "data": {
+    "srcip": "192.168.56.10",
+    "dstip": "192.168.56.20",
+    "protocol": "tcp"
+  },
+  "location": "suricata"
+}

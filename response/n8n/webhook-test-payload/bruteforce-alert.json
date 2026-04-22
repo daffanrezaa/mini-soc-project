@@ -1,0 +1,20 @@
+{
+  "timestamp": "2025-01-15T10:25:12.456+0000",
+  "rule": {
+    "level": 10,
+    "description": "Multiple authentication failures",
+    "id": "100002",
+    "groups": ["bruteforce"]
+  },
+  "agent": {
+    "id": "001",
+    "name": "windows-target",
+    "ip": "192.168.56.20"
+  },
+  "data": {
+    "srcip": "192.168.56.10",
+    "dstip": "192.168.56.20",
+    "dstport": "22"
+  },
+  "location": "wazuh-agent"
+}

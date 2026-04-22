@@ -1,0 +1,22 @@
+{
+  "timestamp": "2025-01-15T10:30:00.789+0000",
+  "rule": {
+    "level": 12,
+    "description": "Suspicious process with outbound connection",
+    "id": "100003",
+    "groups": ["reverse_shell"]
+  },
+  "agent": {
+    "id": "001",
+    "name": "windows-target",
+    "ip": "192.168.56.20"
+  },
+  "data": {
+    "srcip": "192.168.56.20",
+    "dstip": "192.168.56.10",
+    "dstport": "4444",
+    "process": "cmd.exe",
+    "file_hash": "44d88612fea8a8f36de82e1278abb02f"
+  },
+  "location": "wazuh-agent"
+}

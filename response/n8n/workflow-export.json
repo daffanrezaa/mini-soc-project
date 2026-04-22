@@ -1,0 +1,285 @@
+{
+  "name": "Wazuh Auto Triage",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "wazuh-alert",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -16,
+        -160
+      ],
+      "id": "f0f5b6ab-f9e9-43db-b73d-0e87ce6feb36",
+      "name": "Webhook",
+      "webhookId": "b21cdc3b-27f8-42bc-a1a2-e24c523a8018"
+    },
+    {
+      "parameters": {
+        "url": "https://api.abuseipdb.com/api/v2/check",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "ipAddress",
+              "value": "={{ $('Webhook').item.json.body.data.srcip }}"
+            },
+            {
+              "name": "maxAgeInDays",
+              "value": "90"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Key",
+              "value": "7719b629f7b4fb6a2b3464ec8c222b7fbc15dbdba01dec153e9ddfff86df77e33dcf23a579dafab7"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        464,
+        -176
+      ],
+      "id": "9eabbcee-71bc-4d9b-b909-8db2e8c054ee",
+      "name": "AbuseIPBD"
+    },
+    {
+      "parameters": {
+        "url": "=https://www.virustotal.com/api/v3/files/{{ $('Webhook').item.json.body.data.file_hash }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-apikey",
+              "value": "42e5bab1b9d9947e3f589a41b0cc562da0408dc8a44b59bdddd34d85f112d292"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        880,
+        -272
+      ],
+      "id": "e8a59a39-fb15-4f17-9b79-e27ae0844796",
+      "name": "VirusTotal"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:9000/api/v1/case",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer m9Y2j0ZdsFZEmuQiiYDggARNcXA1gKju"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"title\": \"{{ $('Webhook').item.json.body.rule.description }}\",\n  \"description\": \"## Alert Detail\\n\\n**Waktu:** {{ $('Webhook').item.json.body.timestamp }}\\n**Agent:** {{ $('Webhook').item.json.body.agent.name }} ({{ $('Webhook').item.json.body.agent.ip }})\\n**Source IP:** {{ $('Webhook').item.json.body.data.srcip }}\\n**Destination IP:** {{ $('Webhook').item.json.body.data.dstip }}\\n**Rule ID:** {{ $('Webhook').item.json.body.rule.id }}\\n**Rule Level:** {{ $('Webhook').item.json.body.rule.level }}\\n**Rule Group:** {{ $('Webhook').item.json.body.rule.groups[0] }}\\n\\n## Enrichment — AbuseIPDB\\n\\n**Abuse Score:** {{ $('AbuseIPBD').item.json.data.abuseConfidenceScore }}%\\n**Country:** {{ $('AbuseIPBD').item.json.data.countryCode }}\\n**Total Reports:** {{ $('AbuseIPBD').item.json.data.totalReports }}\\n**Last Reported:** {{ $('AbuseIPBD').item.json.data.lastReportedAt }}\\n\\n## Enrichment — VirusTotal\\n\\n**File Hash:** {{ $('Webhook').item.json.body.data.file_hash }}\\n**Malicious Detections:** {{ $('VirusTotal').item.json.data.attributes.last_analysis_stats.malicious }} / 70 engines\\n**Suspicious:** {{ $('VirusTotal').item.json.data.attributes.last_analysis_stats.suspicious }}\\n**Undetected:** {{ $('VirusTotal').item.json.data.attributes.last_analysis_stats.undetected }}\",\n  \"severity\": 3,\n  \"tags\": [\n    \"{{ $('Webhook').item.json.body.rule.groups[0] }}\",\n    \"has-file-hash\",\n    \"auto-created\"\n  ],\n  \"tlp\": 2,\n  \"pap\": 2,\n  \"flag\": false\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1088,
+        -272
+      ],
+      "id": "02bc81f1-0a5b-4d9a-b55d-5216e1231ada",
+      "name": "TheHive VT"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:9000/api/v1/case",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer m9Y2j0ZdsFZEmuQiiYDggARNcXA1gKju"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"title\": \"{{ $('Webhook').item.json.body.rule.description }}\",\n  \"description\": \"## Alert Detail\\n\\n**Waktu:** {{ $('Webhook').item.json.body.timestamp }}\\n**Agent:** {{ $('Webhook').item.json.body.agent.name }} ({{ $('Webhook').item.json.body.agent.ip }})\\n**Source IP:** {{ $('Webhook').item.json.body.data.srcip }}\\n**Destination IP:** {{ $('Webhook').item.json.body.data.dstip }}\\n**Rule ID:** {{ $('Webhook').item.json.body.rule.id }}\\n**Rule Level:** {{ $('Webhook').item.json.body.rule.level }}\\n**Rule Group:** {{ $('Webhook').item.json.body.rule.groups[0] }}\\n\\n## Enrichment — AbuseIPDB\\n\\n**Abuse Score:** {{ $('AbuseIPBD').item.json.data.abuseConfidenceScore }}%\\n**Country:** {{ $('AbuseIPBD').item.json.data.countryCode }}\\n**Total Reports:** {{ $('AbuseIPBD').item.json.data.totalReports }}\\n**Last Reported:** {{ $('AbuseIPBD').item.json.data.lastReportedAt }}\\n\\n## Enrichment — VirusTotal\\n\\n**File Hash:** tidak tersedia\\n**Status:** Scan dilewati — tidak ada file hash pada alert ini\",\n  \"severity\": 2,\n  \"tags\": [\n    \"{{ $('Webhook').item.json.body.rule.groups[0] }}\",\n    \"no-file-hash\",\n    \"auto-created\"\n  ],\n  \"tlp\": 2,\n  \"pap\": 2,\n  \"flag\": false\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1088,
+        -80
+      ],
+      "id": "d388fecd-c325-49d0-ad6b-0e4e1b0c2748",
+      "name": "The Hive No VT"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "ee86b6ec-41ea-45a0-aa56-b7517a3e8eca",
+              "leftValue": "={{ $json.body.rule.level }}",
+              "rightValue": 10,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        224,
+        -160
+      ],
+      "id": "dc994efd-1905-420e-8d73-136989ee5630",
+      "name": "If >= 10?"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "e39c7d18-6647-42aa-b852-a0a21f788088",
+              "leftValue": "={{ $('Webhook').item.json.body.data.file_hash }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        672,
+        -176
+      ],
+      "id": "2e0f9323-4c0f-4ed8-97ef-a8d53a6934d2",
+      "name": "If hash?"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "If >= 10?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AbuseIPBD": {
+      "main": [
+        [
+          {
+            "node": "If hash?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "VirusTotal": {
+      "main": [
+        [
+          {
+            "node": "TheHive VT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If >= 10?": {
+      "main": [
+        [
+          {
+            "node": "AbuseIPBD",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If hash?": {
+      "main": [
+        [
+          {
+            "node": "VirusTotal",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "The Hive No VT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "50a79c70-8a0d-46d3-bcf6-1abe8bbf2028",
+  "meta": {
+    "instanceId": "581f8ce22fc88e89926812267e3c97eed04a4b001b0b2b011cd87a00c896f6b1"
+  },
+  "id": "sZjD6tdgDYZIcGWz",
+  "tags": []
+}
