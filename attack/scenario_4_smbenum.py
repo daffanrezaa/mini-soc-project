@@ -19,15 +19,13 @@
 """
 
 import datetime
-import sys
 
 try:
     from impacket.smbconnection import SMBConnection, SessionError
     from impacket.dcerpc.v5 import transport, samr, srvs
+    _IMPACKET_OK = True
 except ImportError:
-    print("[!] impacket tidak terinstall.")
-    print("[!] Jalankan: pip install impacket")
-    sys.exit(1)
+    _IMPACKET_OK = False
 
 # ── Konfigurasi ──────────────────────────────────────────
 TARGET_IP   = "192.168.100.40"
@@ -156,6 +154,11 @@ def enumerate_users_rpc(target: str) -> list:
 
 
 def run_smb_enum(target: str) -> dict:
+    if not _IMPACKET_OK:
+        print("[!] impacket tidak terinstall — skip SMB Enumeration.")
+        print("[!] Jalankan: pip install impacket")
+        return {"target": target, "shares": [], "users": []}
+
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     print(BANNER.format(target=f"{target}:{SMB_PORT}", time=now))
 

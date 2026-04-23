@@ -63,9 +63,11 @@ def start_listener(listen_ip: str, listen_port: int):
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
     try:
-        server.bind((listen_ip, listen_port))
+        # Bind ke 0.0.0.0 — terima koneksi dari interface manapun,
+        # tidak bergantung pada IP spesifik interface WSL.
+        server.bind(("0.0.0.0", listen_port))
     except OSError as e:
-        print(f"[!] Gagal bind {listen_ip}:{listen_port} — {e}")
+        print(f"[!] Gagal bind 0.0.0.0:{listen_port} — {e}")
         print(f"[!] Port mungkin sudah dipakai. Coba: sudo lsof -i :{listen_port}")
         listener_ready.set()   # unblock trigger thread agar tidak hang
         sys.exit(1)

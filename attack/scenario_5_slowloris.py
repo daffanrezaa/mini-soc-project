@@ -2,7 +2,7 @@
 """
 =============================================================
   Mini SOC Project — Person A (Red Team)
-  Scenario 4: Slowloris DoS (Light Mode — Demo Only)
+  Scenario 5: Slowloris DoS (Light Mode — Demo Only)
 =============================================================
   Target  : Metasploitable 2 @ 192.168.100.40 (port 80)
   Attacker: Kali Linux       @ 192.168.100.160
@@ -42,7 +42,7 @@ KEEP_ALIVE_SEC  = 10       # kirim header palsu setiap N detik
 
 BANNER = """
 ╔══════════════════════════════════════════════════════╗
-║        MINI SOC — SCENARIO 4: SLOWLORIS DoS          ║
+║        MINI SOC — SCENARIO 5: SLOWLORIS DoS          ║
 ║  Target  : {target:<38} ║
 ║  Mode    : {mode:<38} ║
 ║  Time    : {time:<38} ║
