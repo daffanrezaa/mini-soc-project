@@ -68,6 +68,38 @@ Verifikasi:
 pip list | grep -E "nmap|paramiko|impacket"
 ```
 
+> Alternatif jika `pip install -r requirements.txt` gagal
+
+**A) Install satu per satu (paling umum berhasil):**
+```bash
+pip install python-nmap
+pip install paramiko
+pip install impacket
+```
+
+**B) Gunakan `pip3` eksplisit (jika `pip` tidak dikenali):**
+```bash
+pip3 install python-nmap paramiko impacket
+```
+
+**C) Kali / Debian — "externally managed environment" error:**
+
+Kali terbaru memblokir `pip` di luar venv. Solusi:
+```bash
+# Opsi 1 — pastikan kamu sudah di dalam venv (direkomendasikan)
+source venv/bin/activate
+pip install -r requirements.txt
+
+# Opsi 2 — bypass (gunakan hanya jika venv tidak bisa dibuat)
+pip install -r requirements.txt --break-system-packages
+```
+
+**D) Jika `python3-venv` tidak tersedia:**
+```bash
+sudo apt install python3-full python3-pip -y
+# lalu ulangi langkah venv di atas
+```
+
 ---
 
 ## Run Attacks
