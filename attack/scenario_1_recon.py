@@ -15,8 +15,8 @@ import nmap
 import json
 import datetime
 
-TARGET_IP   = "192.168.1.40"
-ATTACKER_IP = "192.168.1.10"
+TARGET_IP   = "192.168.100.40"
+ATTACKER_IP = "192.168.100.160"
 
 # Scan arguments — SYN scan + version detection + OS detection
 # -sS  : SYN/stealth scan (trigger Suricata)

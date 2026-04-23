@@ -1,51 +1,101 @@
-## Hi! U r th one who will "attack" the infra, woohooo!
+# Hi! U r th one who will "attack" the infra, glhf!
 
-To execute the attacks, u will need to do these first:
-```bash
-sudo apt update
-sudo apt install python3-venv -y
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
+## Network Info
+
+| Role | Host | IP |
+|------|------|----|
+| Attacker | WSL / Kali Linux (Laptop A) | `192.168.100.160` |
+| Victim | Metasploitable 2 VM (Laptop B) | `192.168.100.40` |
+
+---
+
+## Setup
+
+### 1. Set IP Static di Windows (Laptop A)
+
 ```
-
-then verify the dependencies:
-```bash
-pip list | grep -E "nmap|paramiko"
-```
-then have fun!
-
-> run an attack? `sudo venv/bin/python [attack.py]` or just use `sudo venv/bin/python run_all.py`
-
-### also, take attention to this first.
-1. Set IP Static di Windows
-```
-Settings → Network & Internet → WiFi → 
+Settings → Network & Internet → WiFi →
 klik nama WiFi → Properties → Edit (IP assignment) → Manual → IPv4
 
-IP address  : 192.168.1.10
+IP address  : 192.168.100.160
 Subnet mask : 255.255.255.0
-Gateway     : 192.168.1.1
+Gateway     : 192.168.100.1
 DNS         : 8.8.8.8
 ```
-2. Set IP Static di WSL/Kali
+
+### 2. Set IP Static di WSL / Kali
 
 Setelah Windows di-set, cek apakah WSL sudah dapat IP yang benar:
+
 ```bash
 ip a | grep 192.168
 ```
-Kalau belum muncul `192.168.1.10`, tambahkan manual:
-```bash
-sudo ip addr add 192.168.1.10/24 dev eth0
-sudo ip route add default via 192.168.1.1
-```
-3. Verifikasi Koneksi (koordinasi dengan Person B & C)
 
-Setelah semua laptop konek ke hotspot yang sama dan IP sudah di-set:
+Kalau belum muncul `192.168.100.160`, tambahkan manual:
+
 ```bash
-ping 192.168.1.20   # Laptop B — harus reply
-ping 192.168.1.30   # Laptop C — harus reply
-ping 192.168.1.40   # Metasploitable VM — harus reply (VM harus nyala dulu)
+sudo ip addr add 192.168.100.160/24 dev eth0
+sudo ip route add default via 192.168.100.1
 ```
 
-> -persephone
+## Verifikasi Koneksi
+
+Koordinasi dengan Person B & C, lalu pastikan semua bisa di-ping:
+
+```bash
+ping 192.168.100.20   # Laptop B (SOC Server) — harus reply
+ping 192.168.100.30   # Laptop C (Response)   — harus reply
+ping 192.168.100.40   # Metasploitable VM      — harus reply (VM harus nyala dulu)
+```
+
+---
+
+> To execute the attacks, u will need to do these first:
+
+```bash
+sudo apt update
+sudo apt install python3-venv nmap -y
+
+python3 -m venv venv
+source venv/bin/activate
+
+pip install -r requirements.txt
+```
+
+Verifikasi:
+
+```bash
+pip list | grep -E "nmap|paramiko|impacket"
+```
+
+---
+
+## Run Attacks
+
+> run an attack? try these commands:
+
+```bash
+sudo venv/bin/python run_all.py
+```
+
+Or, u can run just one attack:
+
+```bash
+sudo venv/bin/python scenario_1_recon.py        # Port Scan (Nmap)
+sudo venv/bin/python scenario_2_bruteforce.py   # SSH Brute Force
+sudo venv/bin/python scenario_3_reverseshell.py # Reverse Shell
+sudo venv/bin/python scenario_4_smbenum.py      # SMB Enumeration
+sudo venv/bin/python scenario_5_slowloris.py    # Slowloris DoS (light mode)
+```
+
+---
+
+## Skenario
+
+| # | Script | Serangan | MITRE ATT&CK | Deteksi |
+|---|--------|----------|--------------|---------|
+| 1 | `scenario_1_recon.py` | Nmap SYN scan ke `192.168.100.40` | T1595 | Suricata |
+| 2 | `scenario_2_bruteforce.py` | SSH brute force ke `192.168.100.40:22` | T1110.001 | Wazuh |
+| 3 | `scenario_3_reverseshell.py` | Reverse shell balik ke `192.168.100.160:4444` | T1059, T1071 | Wazuh + Suricata |
+| 4 | `scenario_4_smbenum.py` | SMB share & user enumeration | T1135, T1087 | Wazuh + Suricata |
+| 5 | `scenario_5_slowloris.py` | Slowloris DoS ke `192.168.100.40:80` (60s, light) | T1499 | Suricata |
